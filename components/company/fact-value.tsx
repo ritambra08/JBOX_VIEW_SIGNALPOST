@@ -1,0 +1,20 @@
+import type {Fact} from '@/lib/types';
+import {stateLabels,formatDate,readable} from '@/lib/format';
+import styles from './company.module.css';
+
+function safeUrl(value:unknown){return typeof value==='string'&&/^https?:\/\//i.test(value)?value:undefined;}
+function titleCase(s:string){return s.replaceAll('_',' ').replace(/^./,c=>c.toUpperCase());}
+function Structured({value,field}:{value:any;field:string}){
+ if(value==null)return <span className={styles.muted}>No value supplied</span>;
+ if(typeof value!=='object')return <>{readable(value)}</>;
+ if(Array.isArray(value))return value.length?<ul className={`${styles.valueList} ${field==='public_activity'?styles.timeline:''}`}>{value.map((item,i)=>{if(item==null||typeof item!=='object')return <li key={i}>{readable(item)}</li>;const title=item.title||item.name||item.platform||item.description||item.type||item.role;const href=safeUrl(item.url);const date=item.date||item.published||item.from||item.period_end;const excluded=['title','name','platform','description','type','role','url','date','published','from','period_end','role_code','holder_type'];return <li key={i}>{field==='public_activity'&&<span aria-hidden="true" className={styles.activityIcon}>{item.kind==='job_posted'?'▣':item.kind==='website_news'?'◷':'↻'}</span>}{date&&<strong className={styles.listDate}>{formatDate(date)} </strong>}{title&&(href?<a href={href} target="_blank" rel="noopener noreferrer">{title}</a>:<strong>{title}</strong>)}{Object.entries(item).filter(([key,v])=>!excluded.includes(key)&&v!=null&&v!=='').map(([key,v])=><span className={styles.listDetail} key={key}>{key==='address'?<Structured value={v} field="address"/>:key==='changes'?readable(v):`${['role','group','kind','source'].includes(key)?'':titleCase(key)+': '}${readable(v)}`}</span>)}{item.role&&item.name&&<span className={styles.listDetail}>{item.role}</span>}</li>;})}</ul>:<span>None listed in this source</span>;
+ if(field==='annual_accounts_latest')return <div><p className={styles.muted}>{value.period_start} to {value.period_end}{value.currency?` · ${value.currency}`:''}{value.accounts_type?` · ${value.accounts_type}`:''}</p><table className={styles.figuresTable}><tbody>{Object.entries(value.figures??{}).filter(([,v])=>v!=null).map(([key,v])=><tr key={key}><th>{titleCase(key)}</th><td>{readable(v)}</td></tr>)}</tbody></table>{['small_company_rules','audit_opted_out'].filter(k=>value[k]!=null).map(k=><p className={styles.muted} key={k}>{titleCase(k)}: {readable(value[k])}</p>)}</div>;
+ if(field==='registered_workplaces')return <div><p>{value.total!=null?`${readable(value.total)} registered workplaces`:'Total not supplied'}</p><Structured value={value.items??[]} field="workplaces"/></div>;
+ if(value.streetAddress||value.postal_code||value.postalCode||value.lines)return <>{[Array.isArray(value.lines)?value.lines.join(', '):value.lines,value.streetAddress,[value.postal_code||value.postalCode,value.city||value.addressLocality].filter(Boolean).join(' '),value.municipality].filter(Boolean).join(', ')}</>;
+ return <dl className={styles.objectValue}>{Object.entries(value).filter(([,v])=>v!=null).map(([key,v])=><div key={key}><dt>{titleCase(key)}</dt><dd><Structured value={v} field={key}/></dd></div>)}</dl>;
+}
+export function FactValue({fact,field='',compact=false}:{fact:Fact;field?:string;compact?:boolean}){
+ if(fact.state!=='available')return <span className={styles.muted}>{stateLabels[fact.state]}{fact.reason?` – ${fact.reason}`:' – No reason was supplied by the source.'}</span>;
+ const url=['official_website','registered_website','careers_page'].includes(field)?safeUrl(fact.text)||safeUrl(fact.value):undefined;
+ return <div className={styles.factContent}>{fact.text?(url?<a href={url} target="_blank" rel="noopener noreferrer">{fact.text}</a>:<span>{fact.text}</span>):<Structured value={fact.value} field={field}/>} {!compact&&fact.note&&<p className={styles.note}>{fact.note}</p>}{fact.stale&&<span className={styles.kept}>Kept from previous run</span>}{field==='official_website'&&fact.note?.includes('Shared website')&&<span className={styles.kept}>Group website</span>}</div>;
+}

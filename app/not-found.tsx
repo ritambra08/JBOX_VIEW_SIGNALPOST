@@ -1,0 +1,1 @@
+import Link from 'next/link';export default function NotFound(){return <main className="empty-state"><h1>That page wasn’t found</h1><p>Find a Norwegian company by name or organisation number.</p><Link className="button primary" href="/">Back to search</Link></main>;}
